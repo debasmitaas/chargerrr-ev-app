@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'core/constants/app_constants.dart';
 import 'routes/app_routes.dart';
+import 'services/firebase_service.dart';
 import 'presentation/pages/splash_page.dart';
+import 'presentation/pages/login_page.dart';
+import 'presentation/pages/signup_page.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Initialize Firebase Service
+  Get.put(FirebaseService());
+  
   runApp(const ChargerrrApp());
 }
 
@@ -50,7 +64,6 @@ class ChargerrrApp extends StatelessWidget {
       getPages: [
         GetPage(name: AppRoutes.splash, page: () => const SplashPage()),
         GetPage(name: AppRoutes.login, page: () => const LoginPage()),
-        GetPage(name: AppRoutes.onboarding, page: () => const OnboardingPage()),
         GetPage(name: AppRoutes.signup, page: () => const SignupPage()),
         GetPage(name: AppRoutes.mapHome, page: () => const MapHomePage()),
       ],
@@ -59,85 +72,7 @@ class ChargerrrApp extends StatelessWidget {
   }
 }
 
-// Temporary pages 
-class LoginPage extends StatelessWidget {
-  const LoginPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Login'),
-        backgroundColor: AppConstants.primaryGreen,
-        foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.person,
-              size: 80,
-              color: AppConstants.primaryGreen,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Login Page',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text('This will be the login form'),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: () => Get.toNamed(AppRoutes.mapHome),
-              child: const Text('Skip to Map (Temporary)'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class OnboardingPage extends StatelessWidget {
-  const OnboardingPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: const Center(
-        child: Text(
-          'Onboarding Page Coming Soon!',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-}
-
-class SignupPage extends StatelessWidget {
-  const SignupPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: const Center(
-        child: Text(
-          'Signup Page Coming Soon!',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-}
-
+// Temporary Map page until we create Google Maps integration
 class MapHomePage extends StatelessWidget {
   const MapHomePage({super.key});
 
@@ -149,6 +84,15 @@ class MapHomePage extends StatelessWidget {
         title: const Text('Chargerrr Map'),
         backgroundColor: AppConstants.primaryGreen,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseService.instance.signOut();
+              Get.offAllNamed(AppRoutes.login);
+            },
+          ),
+        ],
       ),
       body: const Center(
         child: Column(
@@ -161,14 +105,14 @@ class MapHomePage extends StatelessWidget {
             ),
             SizedBox(height: 20),
             Text(
-              'Map with Charging Stations',
+              'Welcome to Chargerrr!',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: AppConstants.primaryGreen,
               ),
             ),
-            Text('Google Maps integration coming next!'),
+            Text('Map with charging stations coming soon!'),
           ],
         ),
       ),
