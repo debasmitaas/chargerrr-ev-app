@@ -19,10 +19,9 @@ class ChargingStationService extends GetxService {
     _loadSampleData();
   }
   
-  // Load sample charging stations (Delhi NCR area)
+  // Load sample charging stations
   void _loadSampleData() {
     _stations.value = [
-      // Connaught Place, Delhi
       const ChargingStation(
         id: '1',
         name: 'BPCL Fast Charging Hub',
@@ -44,7 +43,6 @@ class ChargingStationService extends GetxService {
         operatorPhone: '+91-11-23456789',
       ),
       
-      // India Gate area
       const ChargingStation(
         id: '2',
         name: 'Tata Power Super Charger',
@@ -66,7 +64,6 @@ class ChargingStationService extends GetxService {
         operatorPhone: '+91-11-98765432',
       ),
       
-      // Gurgaon - Cyber City
       const ChargingStation(
         id: '3',
         name: 'Ather Grid Fast Charging',
@@ -88,7 +85,6 @@ class ChargingStationService extends GetxService {
         operatorPhone: '+91-124-4567890',
       ),
       
-      // Noida Sector 18
       const ChargingStation(
         id: '4',
         name: 'ChargeZone Premium Hub',
@@ -110,7 +106,6 @@ class ChargingStationService extends GetxService {
         operatorPhone: '+91-120-9876543',
       ),
       
-      // Dwarka, Delhi
       const ChargingStation(
         id: '5',
         name: 'Mahindra Electric Hub',
@@ -131,18 +126,83 @@ class ChargingStationService extends GetxService {
         is24x7: false,
         operatorPhone: '+91-11-8765432',
       ),
+      
+      const ChargingStation(
+        id: '6',
+        name: 'Reliance Charging Point',
+        address: 'Bandra Kurla Complex',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        latitude: 19.0596,
+        longitude: 72.8656,
+        availablePoints: 4,
+        totalPoints: 6,
+        connectorTypes: ['CCS2', 'Type 2 AC'],
+        amenities: ['WiFi', 'Cafe/Restaurant', 'Shopping Mall'],
+        stationType: 'Fast Charging (DC)',
+        operatorName: 'Reliance',
+        rating: 4.3,
+        reviewCount: 198,
+        pricePerKwh: 14.0,
+        is24x7: true,
+        operatorPhone: '+91-22-12345678',
+      ),
+      
+      const ChargingStation(
+        id: '7',
+        name: 'Bescom Quick Charge',
+        address: 'Electronic City Phase 1',
+        city: 'Bangalore',
+        state: 'Karnataka',
+        latitude: 12.8456,
+        longitude: 77.6603,
+        availablePoints: 2,
+        totalPoints: 4,
+        connectorTypes: ['CCS2', 'Bharat DC'],
+        amenities: ['Tech Park', 'WiFi', 'Cafe/Restaurant'],
+        stationType: 'Fast Charging (DC)',
+        operatorName: 'BESCOM',
+        rating: 4.0,
+        reviewCount: 112,
+        pricePerKwh: 10.5,
+        is24x7: false,
+        operatorPhone: '+91-80-87654321',
+      ),
     ];
   }
   
-  // Get stations near location
+  List<ChargingStation> searchStations(String query) {
+    if (query.isEmpty) return _stations;
+    
+    final searchQuery = query.toLowerCase();
+    return _stations.where((station) =>
+      station.name.toLowerCase().contains(searchQuery) ||
+      station.city.toLowerCase().contains(searchQuery) ||
+      station.operatorName.toLowerCase().contains(searchQuery) ||
+      station.address.toLowerCase().contains(searchQuery)
+    ).toList();
+  }
+  
+  Future<void> refreshStations() async {
+    try {
+      _isLoading.value = true;
+      await Future.delayed(const Duration(milliseconds: 500));
+      _loadSampleData();
+    } catch (e) {
+      _isLoading.value = false;
+      rethrow;
+    } finally {
+      _isLoading.value = false;
+    }
+  }
+  
   List<ChargingStation> getStationsNearLocation(LatLng location, {double radiusInKm = 10.0}) {
     return _stations.where((station) {
       final distance = LocationService.instance.calculateDistanceLatLng(location, station.position);
-      return distance <= radiusInKm * 1000; // Convert km to meters
+      return distance <= radiusInKm * 1000;
     }).toList();
   }
   
-  // Get station by ID
   ChargingStation? getStationById(String id) {
     try {
       return _stations.firstWhere((station) => station.id == id);
@@ -151,8 +211,25 @@ class ChargingStationService extends GetxService {
     }
   }
   
-  // Filter available stations only
   List<ChargingStation> getAvailableStations() {
     return _stations.where((station) => station.isAvailable).toList();
+  }
+  
+  List<ChargingStation> getStationsByCity(String city) {
+    return _stations.where((station) => 
+      station.city.toLowerCase() == city.toLowerCase()
+    ).toList();
+  }
+  
+  List<ChargingStation> getStationsByConnectorType(String connectorType) {
+    return _stations.where((station) => 
+      station.connectorTypes.contains(connectorType)
+    ).toList();
+  }
+  
+  List<ChargingStation> getTopRatedStations({int limit = 10}) {
+    final sortedStations = List<ChargingStation>.from(_stations);
+    sortedStations.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
+    return sortedStations.take(limit).toList();
   }
 }

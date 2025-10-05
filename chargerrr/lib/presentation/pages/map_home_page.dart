@@ -22,16 +22,41 @@ class _MapHomePageState extends State<MapHomePage> {
   final MapController _mapController = MapController();
   final LocationService _locationService = LocationService.instance;
   final ChargingStationService _stationService = ChargingStationService.instance;
+  final TextEditingController _searchController = TextEditingController();
   
   late LatLng _center;
   ChargingStation? _selectedStation;
   bool _isLocationLoading = false;
+  bool _isSearching = false;
+  List<ChargingStation> _filteredStations = [];
   
   @override
   void initState() {
     super.initState();
     _center = const LatLng(AppConstants.indiaLatitude, AppConstants.indiaLongitude);
+    _filteredStations = _stationService.stations;
     _getCurrentLocation();
+    
+    // Listen for search text changes
+    _searchController.addListener(_onSearchChanged);
+  }
+  
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+  
+  void _onSearchChanged() {
+    setState(() {
+      _isSearching = _searchController.text.isNotEmpty;
+      if (_searchController.text.isEmpty) {
+        _filteredStations = _stationService.stations;
+      } else {
+        _filteredStations = _stationService.searchStations(_searchController.text);
+      }
+    });
   }
   
   Future<void> _getCurrentLocation() async {
@@ -58,13 +83,25 @@ class _MapHomePageState extends State<MapHomePage> {
     setState(() => _isLocationLoading = false);
   }
   
+  void _selectStationFromSearch(ChargingStation station) {
+    setState(() {
+      _selectedStation = station;
+      _searchController.clear();
+      _isSearching = false;
+    });
+    
+    // Move map to selected station
+    _mapController.move(station.position, AppConstants.stationZoom);
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
           _buildMap(),
-          _buildTopBar(),
+          _buildFloatingSearchBar(),
+          if (_isSearching && _filteredStations.isNotEmpty) _buildSearchResults(),
           if (_selectedStation != null) _buildStationInfoCard(),
           _buildFloatingButtons(),
         ],
@@ -130,7 +167,9 @@ class _MapHomePageState extends State<MapHomePage> {
   }
   
   List<Marker> _buildStationMarkers() {
-    return _stationService.stations.map((station) {
+    final stationsToShow = _isSearching ? _filteredStations : _stationService.stations;
+    
+    return stationsToShow.map((station) {
       return Marker(
         point: station.position,
         width: 40,
@@ -146,69 +185,213 @@ class _MapHomePageState extends State<MapHomePage> {
     }).toList();
   }
   
-  Widget _buildTopBar() {
+  Widget _buildFloatingSearchBar() {
     return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
+      top: MediaQuery.of(context).padding.top + 20,
+      left: 16,
+      right: 16,
       child: Container(
-        padding: EdgeInsets.only(
-          top: MediaQuery.of(context).padding.top + 10,
-          left: 16,
-          right: 16,
-          bottom: 10,
-        ),
+        height: 56,
         decoration: BoxDecoration(
           color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+              spreadRadius: 1,
             ),
           ],
         ),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppConstants.primaryGreen,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.ev_station,
-                color: Colors.white,
-                size: 24,
-              ),
+            const SizedBox(width: 16),
+            Icon(
+              Icons.search,
+              color: Colors.grey[600],
+              size: 24,
             ),
             const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                AppConstants.appName,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppConstants.primaryGreen,
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search for a place here',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
                 ),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+                onTap: () {
+                  if (_searchController.text.isNotEmpty) {
+                    setState(() => _isSearching = true);
+                  }
+                },
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.search, color: AppConstants.primaryGreen),
-              onPressed: () {
-                // TODO: Implement search
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout, color: AppConstants.primaryGreen),
-              onPressed: () async {
-                await FirebaseService.instance.signOut();
-                Get.offAllNamed(AppRoutes.login);
-              },
+            if (_searchController.text.isNotEmpty) ...[
+              IconButton(
+                icon: Icon(Icons.clear, color: Colors.grey[600]),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {
+                    _isSearching = false;
+                    _filteredStations = _stationService.stations;
+                  });
+                },
+              ),
+            ] else ...[
+              const SizedBox(width: 16),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildSearchResults() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 85, // Below search bar
+      left: 16,
+      right: 16,
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 300),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
+        child: _filteredStations.isEmpty
+            ? Container(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Icon(Icons.search_off, color: Colors.grey[400], size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'No charging stations found for "${_searchController.text}"',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: _filteredStations.length > 5 ? 5 : _filteredStations.length,
+                separatorBuilder: (context, index) => Divider(
+                  height: 1,
+                  color: Colors.grey[200],
+                ),
+                itemBuilder: (context, index) {
+                  final station = _filteredStations[index];
+                  return ListTile(
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: station.isAvailable 
+                            ? AppConstants.accentGreen.withOpacity(0.1)
+                            : AppConstants.errorRed.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.ev_station,
+                        color: station.isAvailable 
+                            ? AppConstants.accentGreen
+                            : AppConstants.errorRed,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      station.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${station.address}, ${station.city}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: station.isAvailable 
+                                    ? AppConstants.accentGreen.withOpacity(0.1)
+                                    : AppConstants.errorRed.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${station.availablePoints}/${station.totalPoints} Available',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: station.isAvailable 
+                                      ? AppConstants.accentGreen
+                                      : AppConstants.errorRed,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (_locationService.currentLatLng != null) ...[
+                              Icon(Icons.location_on, size: 12, color: Colors.grey[500]),
+                              const SizedBox(width: 2),
+                              Text(
+                                _locationService.formatDistance(
+                                  _locationService.calculateDistanceLatLng(
+                                    _locationService.currentLatLng!,
+                                    station.position,
+                                  ),
+                                ),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                    onTap: () => _selectStationFromSearch(station),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -223,9 +406,21 @@ class _MapHomePageState extends State<MapHomePage> {
         onClose: () => setState(() => _selectedStation = null),
         onNavigate: () {
           // TODO: Implement navigation
+          Get.snackbar(
+            'Navigation',
+            'Opening navigation to ${_selectedStation!.name}',
+            backgroundColor: AppConstants.primaryGreen,
+            colorText: Colors.white,
+          );
         },
         onDetails: () {
           // TODO: Navigate to station details
+          Get.snackbar(
+            'Details',
+            'Opening details for ${_selectedStation!.name}',
+            backgroundColor: AppConstants.primaryGreen,
+            colorText: Colors.white,
+          );
         },
       ),
     );
@@ -241,6 +436,7 @@ class _MapHomePageState extends State<MapHomePage> {
             heroTag: "location",
             mini: true,
             backgroundColor: Colors.white,
+            elevation: 4,
             onPressed: _isLocationLoading ? null : _getCurrentLocation,
             child: _isLocationLoading
               ? const SizedBox(
@@ -255,10 +451,33 @@ class _MapHomePageState extends State<MapHomePage> {
             heroTag: "refresh",
             mini: true,
             backgroundColor: AppConstants.primaryGreen,
+            elevation: 4,
             onPressed: () {
-              setState(() {});
+              _stationService.refreshStations();
+              setState(() {
+                _filteredStations = _stationService.stations;
+              });
+              Get.snackbar(
+                'Refreshed',
+                'Charging stations updated',
+                backgroundColor: AppConstants.primaryGreen,
+                colorText: Colors.white,
+                duration: const Duration(seconds: 2),
+              );
             },
             child: const Icon(Icons.refresh, color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: "logout",
+            mini: true,
+            backgroundColor: AppConstants.errorRed,
+            elevation: 4,
+            onPressed: () async {
+              await FirebaseService.instance.signOut();
+              Get.offAllNamed(AppRoutes.login);
+            },
+            child: const Icon(Icons.logout, color: Colors.white),
           ),
         ],
       ),
