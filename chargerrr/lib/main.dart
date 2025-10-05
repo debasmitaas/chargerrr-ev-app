@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_constants.dart';
+import 'core/config/supabase_config.dart';
 import 'routes/app_routes.dart';
-import 'services/firebase_service.dart';
+import 'services/supabase_service.dart';
 import 'services/location_service.dart';
 import 'services/charging_station_service.dart';
 import 'presentation/pages/splash_page.dart';
@@ -16,13 +16,14 @@ import 'presentation/pages/map_home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
   );
   
   // Initialize Services
-  Get.put(FirebaseService());
+  Get.put(SupabaseService());
   Get.put(LocationService());
   Get.put(ChargingStationService());
   
@@ -72,7 +73,6 @@ class ChargerrrApp extends StatelessWidget {
         GetPage(name: AppRoutes.signup, page: () => const SignupPage()),
         GetPage(name: AppRoutes.mapHome, page: () => const MapHomePage()),
       ],
-      debugShowCheckedModeBanner: false,
     );
   }
 }

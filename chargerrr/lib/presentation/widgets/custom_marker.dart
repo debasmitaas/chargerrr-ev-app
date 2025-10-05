@@ -24,7 +24,7 @@ class CustomMarker extends StatelessWidget {
             width: isSelected ? 16 : 12,
             height: isSelected ? 8 : 6,
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -43,7 +43,7 @@ class CustomMarker extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: isSelected ? 8 : 6,
                 offset: const Offset(0, 2),
               ),

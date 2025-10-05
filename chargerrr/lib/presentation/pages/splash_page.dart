@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/constants/app_constants.dart';
 import '../../routes/app_routes.dart';
+import '../../services/supabase_service.dart';
+import '../../services/location_service.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -15,80 +16,65 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    _navigateToNext();
+    _initializeApp();
   }
 
-  void _navigateToNext() async {
+  void _initializeApp() async {
+    // Wait for splash duration
     await Future.delayed(AppConstants.splashDuration);
     
-    // TODO: Check if user is logged in
-    // For now, go to login directly 
-    Get.offNamed(AppRoutes.login);
+    // Check authentication
+    final isLoggedIn = SupabaseService.instance.isLoggedIn;
+    
+    if (isLoggedIn) {
+      // If logged in, check location permission before going to map
+      final shouldAskPermission = await LocationService.instance.shouldRequestPermission();
+      
+      if (shouldAskPermission) {
+        // Ask for permission on first app launch
+        await LocationService.instance.requestLocationPermission();
+      }
+      
+      Get.offNamed(AppRoutes.mapHome);
+    } else {
+      Get.offNamed(AppRoutes.login);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.primaryGreen,
-      body: Center(
+      body: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // App Icon 
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.ev_station,
-                size: 60,
-                color: AppConstants.primaryGreen,
-              ),
-            )
-            .animate()
-            .scale(duration: 800.ms, curve: Curves.elasticOut)
-            .then(delay: 200.ms)
-            .shimmer(duration: 1000.ms),
-            
-            const SizedBox(height: 30),
-            
-            
+            Icon(
+              Icons.ev_station,
+              size: 80,
+              color: Colors.white,
+            ),
+            SizedBox(height: 20),
             Text(
-              AppConstants.appName,
-              style: const TextStyle(
-                fontSize: 36,
+              'Chargerrr',
+              style: TextStyle(
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
-                letterSpacing: 1.2,
               ),
-            )
-            .animate()
-            .fadeIn(delay: 500.ms, duration: 600.ms)
-            .slideY(begin: 0.3, end: 0),
-            
-            const SizedBox(height: 50),
-            
-
-            const SizedBox(
-              width: 30,
-              height: 30,
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 3,
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Find your nearest EV charging station',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white70,
               ),
-            )
-            .animate()
-            .fadeIn(delay: 900.ms),
+            ),
+            SizedBox(height: 40),
+            CircularProgressIndicator(
+              color: Colors.white,
+            ),
           ],
         ),
       ),
