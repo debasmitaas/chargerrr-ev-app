@@ -90,5 +90,5 @@ class LocationService extends GetxService {
 }
 
 class LocationFailure extends Failure {
-  const LocationFailure(String message) : super(message);
+  const LocationFailure(super.message);
 }
