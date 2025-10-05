@@ -6,9 +6,12 @@ import 'firebase_options.dart';
 import 'core/constants/app_constants.dart';
 import 'routes/app_routes.dart';
 import 'services/firebase_service.dart';
+import 'services/location_service.dart';
+import 'services/charging_station_service.dart';
 import 'presentation/pages/splash_page.dart';
 import 'presentation/pages/login_page.dart';
 import 'presentation/pages/signup_page.dart';
+import 'presentation/pages/map_home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,8 +21,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize Firebase Service
+  // Initialize Services
   Get.put(FirebaseService());
+  Get.put(LocationService());
+  Get.put(ChargingStationService());
   
   runApp(const ChargerrrApp());
 }
@@ -68,54 +73,6 @@ class ChargerrrApp extends StatelessWidget {
         GetPage(name: AppRoutes.mapHome, page: () => const MapHomePage()),
       ],
       debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
-// Temporary Map page until we create Google Maps integration
-class MapHomePage extends StatelessWidget {
-  const MapHomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Chargerrr Map'),
-        backgroundColor: AppConstants.primaryGreen,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseService.instance.signOut();
-              Get.offAllNamed(AppRoutes.login);
-            },
-          ),
-        ],
-      ),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.map,
-              size: 80,
-              color: AppConstants.primaryGreen,
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Welcome to Chargerrr!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppConstants.primaryGreen,
-              ),
-            ),
-            Text('Map with charging stations coming soon!'),
-          ],
-        ),
-      ),
     );
   }
 }

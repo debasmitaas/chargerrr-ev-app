@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:latlong2/latlong.dart';
 
 class ChargingStation extends Equatable {
   final String id;
@@ -23,7 +24,6 @@ class ChargingStation extends Equatable {
   final String? operatorPhone;
   final DateTime? lastUpdated;
   final String? description;
-  final Map<String, dynamic>? openingHours;
 
   const ChargingStation({
     required this.id,
@@ -48,42 +48,31 @@ class ChargingStation extends Equatable {
     this.operatorPhone,
     this.lastUpdated,
     this.description,
-    this.openingHours,
   });
 
-  // Helper getters
+  // Helper getters for Flutter Map
   bool get isAvailable => availablePoints > 0 && isOperational;
-  String get availabilityText => isAvailable ? 'Available' : 'Occupied';
-  String get distanceText => ''; // Will be calculated based on user location
+  LatLng get position => LatLng(latitude, longitude);
   
-  // Rating helpers
+  // Status and color helpers
+  String get statusText {
+    if (!isOperational) return 'Offline';
+    if (availablePoints == 0) return 'Occupied';
+    if (availablePoints <= 2) return 'Limited';
+    return 'Available';
+  }
+  
+  // Rating and price display
   String get ratingText => rating != null ? rating!.toStringAsFixed(1) : 'No rating';
   String get reviewText => reviewCount != null ? '($reviewCount reviews)' : '(No reviews)';
+  String get priceText => pricePerKwh != null ? '₹${pricePerKwh!.toStringAsFixed(1)}/kWh' : 'Price not available';
 
   @override
   List<Object?> get props => [
-        id,
-        name,
-        address,
-        city,
-        state,
-        latitude,
-        longitude,
-        availablePoints,
-        totalPoints,
-        connectorTypes,
-        amenities,
-        stationType,
-        rating,
-        reviewCount,
-        pricePerKwh,
-        imageUrl,
-        isOperational,
-        is24x7,
-        operatorName,
-        operatorPhone,
-        lastUpdated,
-        description,
-        openingHours,
+        id, name, address, city, state, latitude, longitude,
+        availablePoints, totalPoints, connectorTypes, amenities,
+        stationType, rating, reviewCount, pricePerKwh, imageUrl,
+        isOperational, is24x7, operatorName, operatorPhone,
+        lastUpdated, description,
       ];
 }
