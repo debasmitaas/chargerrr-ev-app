@@ -2,95 +2,124 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:get/get.dart';
+import 'package:geocoding/geocoding.dart';
 import '../../core/constants/app_constants.dart';
-import '../../routes/app_routes.dart';
-import '../../services/supabase_service.dart';
 import '../../services/location_service.dart';
 import '../../services/charging_station_service.dart';
-
+import '../../domain/entities/charging_station.dart';
+import '../widgets/custom_sidebar_drawer.dart';
+import '../widgets/station_info_card.dart';
+import 'package:geolocator/geolocator.dart';
 class MapHomeController extends GetxController {
   final MapController mapController = MapController();
-  final RxBool isMapReady = false.obs;
+  final RxnString selectedStationId = RxnString();
+  final RxBool isLoading = false.obs;
   
+  ChargingStation? get selectedStation {
+    if (selectedStationId.value == null) return null;
+    return ChargingStationService.instance.stations
+        .where((station) => station.id == selectedStationId.value)
+        .firstOrNull;
+  }
+
   @override
   void onInit() {
     super.onInit();
-    _getCurrentLocationOnInit();
+    refreshStations();
   }
-  
-  void _getCurrentLocationOnInit() async {
-    final result = await LocationService.instance.getCurrentLocation();
-    result.fold(
-      (failure) {
-        // Silent fail on init
-        // print('Location error on init: ${failure.message}');
-      },
-      (position) {
-        mapController.move(
-          LatLng(position.latitude, position.longitude), 
-          14.0
-        );
-      },
-    );
+
+  Future<void> refreshStations() async {
+    isLoading.value = true;
+    await ChargingStationService.instance.refreshStations();
+    isLoading.value = false;
   }
   
   void getCurrentLocation() async {
-    final result = await LocationService.instance.getCurrentLocation();
-    
-    result.fold(
-      (failure) {
-        if (failure.message.contains('permanently denied')) {
-          Get.dialog(
-            AlertDialog(
-              title: const Text('Location Permission'),
-              content: const Text('Please enable location permission in app settings.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Get.back(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Get.back();
-                    LocationService.instance.openAppSettings();
-                  },
-                  child: const Text('Settings'),
-                ),
-              ],
-            ),
-          );
-        } else {
-          Get.snackbar(
-            'Location Error',
-            failure.message,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-        }
-      },
-      (position) {
-        mapController.move(
-          LatLng(position.latitude, position.longitude), 
-          16.0
-        );
-        Get.snackbar(
-          'Location Found',
-          'Showing your current location',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      },
+  // Check permission first to avoid repeated dialogs
+  LocationPermission permission = await Geolocator.checkPermission();
+  
+  if (permission == LocationPermission.deniedForever) {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Location Permission Required'),
+        content: const Text('Location permission is permanently denied. Please enable it in app settings.'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back();
+              LocationService.instance.openAppSettings();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppConstants.primaryGreen),
+            child: const Text('Open Settings', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
+    return;
+  }
+
+  final result = await LocationService.instance.getCurrentLocation();
+  
+  result.fold(
+    (failure) {
+      Get.snackbar(
+        'Location Error', 
+        failure.message, 
+        backgroundColor: Colors.red, 
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
+    },
+    (position) {
+      final newLocation = LatLng(position.latitude, position.longitude);
+      mapController.move(newLocation, 16.0);
+      Get.snackbar(
+        'Success', 
+        'Current location found', 
+        backgroundColor: Colors.green, 
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
+    },
+  );
+}
+  
+  void searchLocation(String query) async {
+    if (query.trim().isEmpty) return;
+    
+    try {
+      List<Location> locations = await locationFromAddress(query);
+      if (locations.isNotEmpty) {
+        final location = locations.first;
+        final latLng = LatLng(location.latitude, location.longitude);
+        mapController.move(latLng, 14.0);
+        Get.snackbar('Found', 'Location found', backgroundColor: AppConstants.primaryGreen, colorText: Colors.white);
+      } else {
+        Get.snackbar('Not Found', 'Location not found', backgroundColor: Colors.orange, colorText: Colors.white);
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Search failed', backgroundColor: Colors.red, colorText: Colors.white);
+    }
   }
   
-  void searchStations(String query) {
-    final results = ChargingStationService.instance.searchStations(query);
-    Get.snackbar('Search', 'Found ${results.length} stations');
+  void selectStation(String stationId) {
+    selectedStationId.value = stationId;
+    
+    final station = ChargingStationService.instance.stations
+        .where((s) => s.id == stationId)
+        .firstOrNull;
+    
+    if (station != null) {
+      mapController.move(station.position, 16.0);
+    }
   }
   
-  void logout() async {
-    await SupabaseService.instance.signOut();
-    Get.offAllNamed(AppRoutes.login);
+  void closeStationInfo() {
+    selectedStationId.value = null;
   }
 }
 
@@ -102,12 +131,13 @@ class MapHomePage extends StatelessWidget {
     return GetBuilder<MapHomeController>(
       init: MapHomeController(),
       builder: (controller) => Scaffold(
+        endDrawer: const CustomSidebarDrawer(),
         body: Stack(
           children: [
             _buildMap(controller),
             _buildSearchBar(controller),
             _buildLocationButton(controller),
-            _buildLogoutButton(controller),
+            _buildStationInfoCard(controller),
           ],
         ),
       ),
@@ -122,7 +152,7 @@ class MapHomePage extends StatelessWidget {
       return FlutterMap(
         mapController: controller.mapController,
         options: MapOptions(
-          initialCenter: const LatLng(28.6139, 77.2090), // Delhi
+          initialCenter: const LatLng(28.6139, 77.2090),
           initialZoom: 10.0,
         ),
         children: [
@@ -130,31 +160,30 @@ class MapHomePage extends StatelessWidget {
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.debasmita.chargerrr.chargerrr',
           ),
-          
-          // Station markers
           MarkerLayer(
-            markers: stations.map((station) => Marker(
-              point: station.position,
-              width: 40,
-              height: 40,
-              child: GestureDetector(
-                onTap: () => Get.snackbar('Station', station.name),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: station.isAvailable ? Colors.green : Colors.red,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
+            markers: [
+              ...stations.map((station) => Marker(
+                point: station.position,
+                width: 40,
+                height: 40,
+                child: GestureDetector(
+                  onTap: () => controller.selectStation(station.id),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: station.isAvailable ? Colors.green : Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: controller.selectedStationId.value == station.id 
+                            ? Colors.blue 
+                            : Colors.white, 
+                        width: controller.selectedStationId.value == station.id ? 3 : 2,
+                      ),
+                    ),
+                    child: const Icon(Icons.ev_station, color: Colors.white, size: 20),
                   ),
-                  child: const Icon(Icons.ev_station, color: Colors.white, size: 20),
                 ),
-              ),
-            )).toList(),
-          ),
-          
-          // User location marker
-          if (userLocation != null)
-            MarkerLayer(
-              markers: [
+              )),
+              if (userLocation != null)
                 Marker(
                   point: userLocation,
                   width: 30,
@@ -168,8 +197,8 @@ class MapHomePage extends StatelessWidget {
                     child: const Icon(Icons.my_location, color: Colors.white, size: 16),
                   ),
                 ),
-              ],
-            ),
+            ],
+          ),
         ],
       );
     });
@@ -195,10 +224,24 @@ class MapHomePage extends StatelessWidget {
             Expanded(
               child: TextField(
                 decoration: const InputDecoration(
-                  hintText: 'Search charging stations...',
+                  hintText: 'Search charging points',
                   border: InputBorder.none,
                 ),
-                onSubmitted: controller.searchStations,
+                onSubmitted: controller.searchLocation,
+              ),
+            ),
+            Builder(
+              builder: (context) => GestureDetector(
+                onTap: () => Scaffold.of(context).openEndDrawer(),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryGreen,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(Icons.menu, color: Colors.white, size: 20),
+                ),
               ),
             ),
           ],
@@ -208,30 +251,56 @@ class MapHomePage extends StatelessWidget {
   }
 
   Widget _buildLocationButton(MapHomeController controller) {
-    return Positioned(
-      right: 16,
-      bottom: 100,
-      child: Obx(() => FloatingActionButton(
-        heroTag: "location",
-        backgroundColor: Colors.white,
-        onPressed: LocationService.instance.isLoading ? null : controller.getCurrentLocation,
-        child: LocationService.instance.isLoading
-            ? const CircularProgressIndicator(strokeWidth: 2)
-            : const Icon(Icons.my_location, color: AppConstants.primaryGreen),
-      )),
-    );
-  }
-
-  Widget _buildLogoutButton(MapHomeController controller) {
-    return Positioned(
-      right: 16,
-      bottom: 40,
-      child: FloatingActionButton(
-        heroTag: "logout",
-        backgroundColor: Colors.red,
-        onPressed: controller.logout,
-        child: const Icon(Icons.logout, color: Colors.white),
-      ),
-    );
+  return Positioned(
+    right: 16,
+    bottom: 120,
+    child: Obx(() => FloatingActionButton(
+      heroTag: "location",
+      backgroundColor: Colors.white,
+      onPressed: LocationService.instance.isLoading.value ? null : controller.getCurrentLocation,
+      child: LocationService.instance.isLoading.value
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.my_location, color: AppConstants.primaryGreen),
+    )),
+  );
+}
+  Widget _buildStationInfoCard(MapHomeController controller) {
+    return Obx(() {
+      final selectedStation = controller.selectedStation;
+      
+      if (selectedStation == null) {
+        return const SizedBox.shrink();
+      }
+      
+      return Positioned(
+        left: 16,
+        right: 16,
+        bottom: 200,
+        child: StationInfoCard(
+          station: selectedStation,
+          onClose: controller.closeStationInfo,
+          onNavigate: () {
+            Get.snackbar(
+              'Navigation',
+              'Opening navigation to ${selectedStation.name}',
+              backgroundColor: AppConstants.primaryGreen,
+              colorText: Colors.white,
+            );
+          },
+          onDetails: () {
+            Get.snackbar(
+              'Details',
+              'Showing details for ${selectedStation.name}',
+              backgroundColor: AppConstants.primaryGreen,
+              colorText: Colors.white,
+            );
+          },
+        ),
+      );
+    });
   }
 }

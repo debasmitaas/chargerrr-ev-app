@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../domain/entities/charging_station.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/app_utils.dart';
 import '../../services/location_service.dart';
 
 class StationInfoCard extends StatelessWidget {
@@ -8,7 +10,7 @@ class StationInfoCard extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onNavigate;
   final VoidCallback onDetails;
-  
+
   const StationInfoCard({
     super.key,
     required this.station,
@@ -16,7 +18,7 @@ class StationInfoCard extends StatelessWidget {
     required this.onNavigate,
     required this.onDetails,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -26,7 +28,7 @@ class StationInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -45,7 +47,7 @@ class StationInfoCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildHeader() {
     return Row(
       children: [
@@ -53,12 +55,14 @@ class StationInfoCard extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: station.isAvailable ? AppConstants.accentGreen : AppConstants.errorRed,
+            color: station.isAvailable 
+                ? AppConstants.accentGreen 
+                : AppConstants.errorRed,
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(
-            Icons.ev_station,
-            color: Colors.white,
+            Icons.ev_station, 
+            color: Colors.white, 
             size: 24,
           ),
         ),
@@ -80,7 +84,7 @@ class StationInfoCard extends StatelessWidget {
               Text(
                 station.operatorName,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 14, 
                   color: Colors.grey[600],
                 ),
               ),
@@ -94,7 +98,7 @@ class StationInfoCard extends StatelessWidget {
       ],
     );
   }
-  
+
   Widget _buildStationInfo() {
     return Column(
       children: [
@@ -106,27 +110,14 @@ class StationInfoCard extends StatelessWidget {
               child: Text(
                 station.address,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 14, 
                   color: Colors.grey[600],
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (LocationService.instance.currentLatLng != null)
-              Text(
-                LocationService.instance.formatDistance(
-                  LocationService.instance.calculateDistanceLatLng(
-                    LocationService.instance.currentLatLng!,
-                    station.position,
-                  ),
-                ),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppConstants.primaryGreen,
-                ),
-              ),
+            _buildDistanceWidget(),
           ],
         ),
         const SizedBox(height: 8),
@@ -134,11 +125,13 @@ class StationInfoCard extends StatelessWidget {
           children: [
             _buildInfoChip(
               '${station.availablePoints}/${station.totalPoints} Available',
-              station.isAvailable ? AppConstants.accentGreen : AppConstants.errorRed,
+              station.isAvailable 
+                  ? AppConstants.accentGreen 
+                  : AppConstants.errorRed,
             ),
             const SizedBox(width: 8),
             _buildInfoChip(
-              station.priceText,
+              station.priceText, 
               AppConstants.primaryGreen,
             ),
             if (station.rating != null) ...[
@@ -150,12 +143,36 @@ class StationInfoCard extends StatelessWidget {
       ],
     );
   }
-  
+
+  Widget _buildDistanceWidget() {
+    final userLocation = LocationService.instance.currentLatLng;
+    
+    if (userLocation == null) {
+      return const SizedBox.shrink();
+    }
+
+    final distanceInMeters = Geolocator.distanceBetween(
+      userLocation.latitude,
+      userLocation.longitude,
+      station.position.latitude,
+      station.position.longitude,
+    );
+
+    return Text(
+      AppUtils.formatDistance(distanceInMeters),
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: AppConstants.primaryGreen,
+      ),
+    );
+  }
+
   Widget _buildInfoChip(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -168,12 +185,12 @@ class StationInfoCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildRatingChip() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.1),
+        color: Colors.orange.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -193,7 +210,7 @@ class StationInfoCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildActionButtons() {
     return Row(
       children: [

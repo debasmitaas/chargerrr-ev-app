@@ -88,7 +88,7 @@ class CustomMarker extends StatelessWidget {
   }
   
   IconData _getMarkerIcon() {
-    switch (station.stationType) {
+    switch (station.addedByText) {
       case 'Super Fast Charging':
         return Icons.flash_on;
       case 'Fast Charging (DC)':

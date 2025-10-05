@@ -3,11 +3,28 @@ import 'package:get/get.dart';
 import 'package:dartz/dartz.dart';
 import '../core/errors/failures.dart';
 import '../domain/entities/app_user.dart';
+import '../core/config/supabase_config.dart';
 
 class SupabaseService extends GetxService {
   static SupabaseService get instance => Get.find();
+  late SupabaseClient _client;
   
-  SupabaseClient get _client => Supabase.instance.client;
+  // Expose the client getter
+  SupabaseClient get client => _client;
+  
+  @override
+  Future<void> onInit() async {
+    super.onInit();
+    await _initializeSupabase();
+  }
+  
+  Future<void> _initializeSupabase() async {
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      anonKey: SupabaseConfig.anonKey,
+    );
+    _client = Supabase.instance.client;
+  }
   
   // Auth getters
   User? get currentUser => _client.auth.currentUser;
@@ -64,6 +81,70 @@ class SupabaseService extends GetxService {
   AppUser? getCurrentAppUser() {
     final user = currentUser;
     return user != null ? _createAppUser(user) : null;
+  }
+  
+  // ADDED: Database method for adding charging stations
+  Future<Map<String, dynamic>> insertChargingStation(Map<String, dynamic> stationData) async {
+    try {
+      final response = await _client
+          .from('charging_stations')
+          .insert(stationData)
+          .select()
+          .single();
+      return response;
+    } catch (e) {
+      throw Exception('Failed to insert charging station: $e');
+    }
+  }
+  
+  // ADDED: Get all charging stations
+  Future<List<Map<String, dynamic>>> getChargingStations() async {
+    try {
+      final response = await _client
+          .from('charging_stations')
+          .select()
+          .eq('is_operational', true);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to get charging stations: $e');
+    }
+  }
+  
+  // ADDED: Update charging station
+  Future<void> updateChargingStation(String id, Map<String, dynamic> data) async {
+    try {
+      await _client
+          .from('charging_stations')
+          .update(data)
+          .eq('id', id);
+    } catch (e) {
+      throw Exception('Failed to update charging station: $e');
+    }
+  }
+  
+  // ADDED: Delete charging station
+  Future<void> deleteChargingStation(String id) async {
+    try {
+      await _client
+          .from('charging_stations')
+          .delete()
+          .eq('id', id);
+    } catch (e) {
+      throw Exception('Failed to delete charging station: $e');
+    }
+  }
+  
+  // ADDED: Get stations by user
+  Future<List<Map<String, dynamic>>> getStationsByUser(String userId) async {
+    try {
+      final response = await _client
+          .from('charging_stations')
+          .select()
+          .eq('added_by', userId);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to get user stations: $e');
+    }
   }
   
   // Favorites

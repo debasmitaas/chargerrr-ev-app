@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import '../../core/constants/app_constants.dart';
 import '../../routes/app_routes.dart';
 import '../../services/supabase_service.dart';
-import '../../services/location_service.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -27,14 +26,6 @@ class _SplashPageState extends State<SplashPage> {
     final isLoggedIn = SupabaseService.instance.isLoggedIn;
     
     if (isLoggedIn) {
-      // If logged in, check location permission before going to map
-      final shouldAskPermission = await LocationService.instance.shouldRequestPermission();
-      
-      if (shouldAskPermission) {
-        // Ask for permission on first app launch
-        await LocationService.instance.requestLocationPermission();
-      }
-      
       Get.offNamed(AppRoutes.mapHome);
     } else {
       Get.offNamed(AppRoutes.login);

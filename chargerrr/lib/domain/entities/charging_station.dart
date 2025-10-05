@@ -1,78 +1,94 @@
-import 'package:equatable/equatable.dart';
 import 'package:latlong2/latlong.dart';
 
-class ChargingStation extends Equatable {
+class ChargingStation {
   final String id;
   final String name;
   final String address;
-  final String city;
-  final String state;
-  final double latitude;
-  final double longitude;
-  final int availablePoints;
+  final LatLng position;
+  final String operatorName;
   final int totalPoints;
+  final int availablePoints;
+  final double pricePerKwh;
   final List<String> connectorTypes;
   final List<String> amenities;
-  final String stationType;
-  final double? rating;
-  final int? reviewCount;
-  final double? pricePerKwh;
-  final String? imageUrl;
+  final String? openingHours;
+  final String? phone;
   final bool isOperational;
-  final bool is24x7;
-  final String operatorName;
-  final String? operatorPhone;
-  final DateTime? lastUpdated;
-  final String? description;
+  final String? addedBy;
+  final String? addedByEmail;
+  final DateTime? createdAt;
+  final double? rating;
 
-  const ChargingStation({
+  ChargingStation({
     required this.id,
     required this.name,
     required this.address,
-    required this.city,
-    required this.state,
-    required this.latitude,
-    required this.longitude,
-    required this.availablePoints,
-    required this.totalPoints,
-    required this.connectorTypes,
-    required this.amenities,
-    required this.stationType,
+    required this.position,
     required this.operatorName,
-    this.rating,
-    this.reviewCount,
-    this.pricePerKwh,
-    this.imageUrl,
+    required this.totalPoints,
+    required this.availablePoints,
+    required this.pricePerKwh,
+    this.connectorTypes = const [],
+    this.amenities = const [],
+    this.openingHours,
+    this.phone,
     this.isOperational = true,
-    this.is24x7 = false,
-    this.operatorPhone,
-    this.lastUpdated,
-    this.description,
+    this.addedBy,
+    this.addedByEmail,
+    this.createdAt,
+    this.rating,
   });
 
-  // Helper getters for Flutter Map
-  bool get isAvailable => availablePoints > 0 && isOperational;
-  LatLng get position => LatLng(latitude, longitude);
-  
-  // Status and color helpers
-  String get statusText {
-    if (!isOperational) return 'Offline';
-    if (availablePoints == 0) return 'Occupied';
-    if (availablePoints <= 2) return 'Limited';
-    return 'Available';
-  }
-  
-  // Rating and price display
-  String get ratingText => rating != null ? rating!.toStringAsFixed(1) : 'No rating';
-  String get reviewText => reviewCount != null ? '($reviewCount reviews)' : '(No reviews)';
-  String get priceText => pricePerKwh != null ? '₹${pricePerKwh!.toStringAsFixed(1)}/kWh' : 'Price not available';
+  bool get isAvailable => isOperational && availablePoints > 0;
 
-  @override
-  List<Object?> get props => [
-        id, name, address, city, state, latitude, longitude,
-        availablePoints, totalPoints, connectorTypes, amenities,
-        stationType, rating, reviewCount, pricePerKwh, imageUrl,
-        isOperational, is24x7, operatorName, operatorPhone,
-        lastUpdated, description,
-      ];
+  String get priceText => '₹${pricePerKwh.toStringAsFixed(2)}/kWh';
+
+  String get ratingText => rating != null ? rating!.toStringAsFixed(1) : 'No rating';
+
+  String get addedByText => addedByEmail != null ? 'Added by $addedByEmail' : 'Official station';
+
+  factory ChargingStation.fromJson(Map<String, dynamic> json) {
+    return ChargingStation(
+      id: json['id'],
+      name: json['name'],
+      address: json['address'],
+      position: LatLng(json['latitude'], json['longitude']),
+      operatorName: json['operator_name'],
+      totalPoints: json['total_points'] ?? 1,
+      availablePoints: json['available_points'] ?? 1,
+      pricePerKwh: (json['price_per_kwh'] ?? 12.0).toDouble(),
+      connectorTypes: List<String>.from(json['connector_types'] ?? []),
+      amenities: List<String>.from(json['amenities'] ?? []),
+      openingHours: json['opening_hours'],
+      phone: json['phone'],
+      isOperational: json['is_operational'] ?? true,
+      addedBy: json['added_by'],
+      addedByEmail: json['added_by_email'],
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
+      rating: json['rating']?.toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'address': address,
+      'latitude': position.latitude,
+      'longitude': position.longitude,
+      'operator_name': operatorName,
+      'total_points': totalPoints,
+      'available_points': availablePoints,
+      'price_per_kwh': pricePerKwh,
+      'connector_types': connectorTypes,
+      'amenities': amenities,
+      'opening_hours': openingHours,
+      'phone': phone,
+      'is_operational': isOperational,
+      'added_by': addedBy,
+      'added_by_email': addedByEmail,
+      'created_at': createdAt?.toIso8601String(),
+      'rating': rating,
+    };
+  }
 }

@@ -1,141 +1,86 @@
 import 'package:get/get.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/entities/charging_station.dart';
-import '../services/location_service.dart';
+import 'supabase_service.dart';
 
 class ChargingStationService extends GetxService {
   static ChargingStationService get instance => Get.find();
-  
+
   final RxList<ChargingStation> _stations = <ChargingStation>[].obs;
-  final RxBool _isLoading = false.obs;
-  
-  SupabaseClient get _client => Supabase.instance.client;
-  
+
   List<ChargingStation> get stations => _stations;
-  bool get isLoading => _isLoading.value;
-  
+
   @override
   void onInit() {
     super.onInit();
     loadStations();
   }
-  
-  // Load stations from Supabase database
+
   Future<void> loadStations() async {
     try {
-      _isLoading.value = true;
+      final response = await SupabaseService.instance.getChargingStations();
       
-      final response = await _client
-          .from('charging_stations')
-          .select()
-          .order('name');
-      
-      _stations.value = response.map<ChargingStation>((data) => 
-        _mapToChargingStation(data)
-      ).toList();
+      _stations.value = response.map((json) {
+        return ChargingStation(
+          id: json['id'].toString(),
+          name: json['name'] ?? 'Unknown Station',
+          address: json['address'] ?? 'Unknown Address',
+          position: LatLng(
+            (json['latitude'] as num).toDouble(),
+            (json['longitude'] as num).toDouble(),
+          ),
+          operatorName: json['operator_name'] ?? 'Unknown Operator',
+          totalPoints: json['total_points'] ?? 1,
+          availablePoints: json['available_points'] ?? 1,
+          pricePerKwh: (json['price_per_kwh'] as num?)?.toDouble() ?? 12.0,
+          connectorTypes: List<String>.from(json['connector_types'] ?? []),
+          amenities: List<String>.from(json['amenities'] ?? []),
+          openingHours: json['opening_hours'] ?? '24/7',
+          isOperational: json['is_operational'] ?? true,
+          addedBy: json['added_by'],
+          addedByEmail: json['added_by_email'],
+          createdAt: json['created_at'] != null 
+              ? DateTime.parse(json['created_at']) 
+              : DateTime.now(),
+        );
+      }).toList();
       
     } catch (e) {
-      // If database fails, use mock data
-      _loadMockData();
-    } finally {
-      _isLoading.value = false;
+      print('Error loading stations: $e');
+      _stations.clear();
     }
   }
-  
-  // Convert database row to ChargingStation object
-  ChargingStation _mapToChargingStation(Map<String, dynamic> data) {
-    return ChargingStation(
-      id: data['id'],
-      name: data['name'],
-      address: data['address'],
-      city: data['city'],
-      state: data['state'],
-      latitude: data['latitude'].toDouble(),
-      longitude: data['longitude'].toDouble(),
-      availablePoints: data['available_points'],
-      totalPoints: data['total_points'],
-      connectorTypes: List<String>.from(data['connector_types'] ?? []),
-      amenities: List<String>.from(data['amenities'] ?? []),
-      stationType: data['station_type'],
-      operatorName: data['operator_name'],
-      operatorPhone: data['operator_phone'],
-      rating: data['rating']?.toDouble(),
-      reviewCount: data['review_count'],
-      pricePerKwh: data['price_per_kwh']?.toDouble(),
-      imageUrl: data['image_url'],
-      isOperational: data['is_operational'] ?? true,
-      is24x7: data['is_24x7'] ?? false,
-      lastUpdated: data['last_updated'] != null 
-          ? DateTime.parse(data['last_updated'])
-          : null,
-      description: data['description'],
-    );
+
+  void addStation(ChargingStation station) {
+    _stations.add(station);
   }
-  
-  // Search stations
+
+  void updateStation(ChargingStation updatedStation) {
+    final index = _stations.indexWhere((s) => s.id == updatedStation.id);
+    if (index != -1) {
+      _stations[index] = updatedStation;
+    }
+  }
+
+  void removeStation(String stationId) {
+    _stations.removeWhere((s) => s.id == stationId);
+  }
+
   List<ChargingStation> searchStations(String query) {
-    if (query.isEmpty) return _stations;
+    if (query.isEmpty) return stations;
     
-    final searchQuery = query.toLowerCase();
-    return _stations.where((station) =>
-      station.name.toLowerCase().contains(searchQuery) ||
-      station.city.toLowerCase().contains(searchQuery) ||
-      station.operatorName.toLowerCase().contains(searchQuery) ||
-      station.address.toLowerCase().contains(searchQuery)
-    ).toList();
-  }
-  
-  // Refresh stations from database
-  Future<void> refreshStations() async {
-    await loadStations();
-  }
-  
-  // Get stations near your location
-  List<ChargingStation> getStationsNearLocation(LatLng location, {double radiusInKm = 10.0}) {
-    return _stations.where((station) {
-      final distance = LocationService.instance.calculateDistanceLatLng(location, station.position);
-      return distance <= radiusInKm * 1000;
+    return stations.where((station) {
+      return station.name.toLowerCase().contains(query.toLowerCase()) ||
+             station.address.toLowerCase().contains(query.toLowerCase()) ||
+             station.operatorName.toLowerCase().contains(query.toLowerCase());
     }).toList();
   }
-  
-  // Get station by ID
-  ChargingStation? getStationById(String id) {
-    try {
-      return _stations.firstWhere((station) => station.id == id);
-    } catch (e) {
-      return null;
-    }
+
+  List<ChargingStation> getStationsByUser(String userId) {
+    return stations.where((station) => station.addedBy == userId).toList();
   }
-  
-  // Get available stations only
-  List<ChargingStation> getAvailableStations() {
-    return _stations.where((station) => station.isAvailable).toList();
-  }
-  
-  // Backup mock data if database fails
-  void _loadMockData() {
-    _stations.value = [
-      const ChargingStation(
-        id: 'mock-1',
-        name: 'BPCL Fast Charging Hub',
-        address: 'Connaught Place, Block A',
-        city: 'New Delhi',
-        state: 'Delhi',
-        latitude: 28.6315,
-        longitude: 77.2167,
-        availablePoints: 3,
-        totalPoints: 4,
-        connectorTypes: ['CCS2', 'CHAdeMO'],
-        amenities: ['WiFi', 'Cafe/Restaurant', 'ATM'],
-        stationType: 'Fast Charging (DC)',
-        operatorName: 'BPCL',
-        rating: 4.2,
-        reviewCount: 156,
-        pricePerKwh: 12.5,
-        is24x7: true,
-        operatorPhone: '+91-11-23456789',
-      ),
-    ];
+
+  Future<void> refreshStations() async {
+    await loadStations();
   }
 }
