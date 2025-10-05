@@ -46,7 +46,7 @@ class ChargingStationService extends GetxService {
       }).toList();
       
     } catch (e) {
-      print('Error loading stations: $e');
+      // print('Error loading stations: $e');
       _stations.clear();
     }
   }
